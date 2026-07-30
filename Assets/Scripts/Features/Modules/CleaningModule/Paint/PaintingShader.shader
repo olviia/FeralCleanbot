@@ -1,6 +1,9 @@
 Shader "Hidden/Cleanbot/PaintingShader"
   {
-      Properties { _FootprintTex ("Footprint", 2D) = "white" {} }
+      Properties {
+          _FootprintTex ("Footprint", 2D) = "white" {}
+          
+      }
       SubShader
       {
           Tags { "RenderPipeline" = "UniversalPipeline" }
@@ -20,8 +23,7 @@ Shader "Hidden/Cleanbot/PaintingShader"
               #include  "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"      
 
               float4 _BrushColor;
-              float2 _PaintRectMin;    // world XZ at uv (0,0)
-              float2 _PaintRectSize;   // world XZ span of the surface
+              float4 _PaintRect;    // world XZ at uv (0,0)
               float2 _BrushCenter;      // world XZ
               float  _BrushYaw;         // radians, about Y
               float  _BrushHalfSize;    // metres — half-extent of the footprint in world  
@@ -30,7 +32,11 @@ Shader "Hidden/Cleanbot/PaintingShader"
 
 
               struct Attributes { float4 positionOS : POSITION; float2 uv :      TEXCOORD0; };
-              struct Varyings   { float4 positionCS : SV_POSITION; float2 uv :   TEXCOORD0; };
+              struct Varyings
+              {
+                  float4 positionCS : SV_POSITION;
+                  float2 uv :   TEXCOORD0;
+              };
 
               Varyings vert (Attributes IN)
               {
@@ -42,7 +48,7 @@ Shader "Hidden/Cleanbot/PaintingShader"
 
               half4 frag (Varyings IN) : SV_Target
               {
-                  float2 world = _PaintRectMin + IN.uv * _PaintRectSize;   // texel -> world XZ
+                  float2 world = _PaintRect.xy + IN.uv * _PaintRect.zw;;   // texel -> world XZ
                   float2 p     = world - _BrushCenter;                     // relative to brush centre
               
                   float s, c; sincos(_BrushYaw, s, c);                     // rotate world into brush frame (−yaw)

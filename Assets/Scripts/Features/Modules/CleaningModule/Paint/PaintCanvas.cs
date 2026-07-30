@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 
 namespace Paint
@@ -31,14 +33,42 @@ namespace Paint
         [SerializeField] private Shader paintShader;
         
         private Material _paintMat;
-        private static readonly int RectMinId       = Shader.PropertyToID("_PaintRectMin");
-        private static readonly int RectSizeId      = Shader.PropertyToID("_PaintRectSize");
+        private static readonly int PaintRectId = Shader.PropertyToID("_PaintRect");
         private static readonly int BrushCenterId   = Shader.PropertyToID("_BrushCenter");
         private static readonly int BrushYawId      = Shader.PropertyToID("_BrushYaw");
         private static readonly int BrushHalfSizeId = Shader.PropertyToID("_BrushHalfSize");
         private static readonly int FootprintId     = Shader.PropertyToID("_FootprintTex");
         private static readonly int BrushColorId    = Shader.PropertyToID("_BrushColor");
 
+        private byte[] _debugSnapshot;
+
+        [ContextMenu("Debug: snapshot mask")]
+        private void DebugSnapshot()
+        {
+            _debugSnapshot = ReadRaw();
+            Debug.Log($"[Paint] snapshot {_debugSnapshot?.Length ?? 0} bytes");
+            Clear(clearColor);              // floor goes fully dusty again
+        }
+
+        [ContextMenu("Debug: restore mask")]
+        private void DebugRestore()
+        {
+            WriteRaw(_debugSnapshot);       // trail comes back
+            Debug.Log("[Paint] restored");
+        }
+
+
+        public Vector4 PaintRect
+        {
+            get
+            {
+                Bounds b = surfaceRenderer.bounds;
+                return new Vector4(b.min.x, b.min.z, b.size.x, b.size.z);
+            }
+        }
+
+        
+        
         private readonly struct MaterialBinding
         {
             private readonly Material _material;
@@ -147,8 +177,7 @@ namespace Paint
             EnsurePaintMaterial();
 
             Bounds b = surfaceRenderer.bounds;   // world AABB of the flat surface
-            _paintMat.SetVector(RectMinId,      new Vector4(b.min.x,  b.min.z));     
-            _paintMat.SetVector(RectSizeId,     new Vector4(b.size.x, b.size.z)); 
+            _paintMat.SetVector(PaintRectId, PaintRect);
             _paintMat.SetVector(BrushCenterId,  new Vector4(worldPos.x, worldPos.z));
             _paintMat.SetFloat(BrushYawId,      yawRadians);
             _paintMat.SetFloat(BrushHalfSizeId, brush.halfSize);
@@ -156,6 +185,41 @@ namespace Paint
             _paintMat.SetColor(BrushColorId, color);
 
             Graphics.Blit(null, _rt, _paintMat, 0);
+        }
+
+        public byte[] ReadRaw()
+        {
+            EnsureCreated();
+
+            var request = AsyncGPUReadback.Request(_rt);
+            request.WaitForCompletion();
+
+            if (request.hasError)
+            {
+                Debug.LogError($"[Paint] readback failed on {name}");
+                return null;
+            }
+
+            return request.GetData<byte>().ToArray();
+        }
+
+        public void WriteRaw(byte[] bytes)
+        {
+            if (bytes == null) return;
+            EnsureCreated();
+            
+            long expected = GraphicsFormatUtility.ComputeMipmapSize(_rt.width, _rt.height, _rt.graphicsFormat);
+            if (bytes.Length != expected)
+            {
+                Debug.LogWarning($"[Paint]{name}: mask is {bytes.Length} bytes, surface wants {expected}. Ignoring mask");
+                return;
+            }
+            
+            var staging = new Texture2D(_rt.width, _rt.height, _rt.graphicsFormat, TextureCreationFlags.None);
+            staging.LoadRawTextureData(bytes);
+            staging.Apply(false, false);
+            Graphics.Blit(staging, _rt);
+            DestroyObject(staging);
         }
 
     }

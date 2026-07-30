@@ -1,6 +1,6 @@
 {
   "name": "App",
   "references": [
-    "Core"
+    "Core", "Features.Modules"
   ]
 }

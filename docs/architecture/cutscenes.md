@@ -1,36 +1,63 @@
 # Cutscenes
 
-*`Features/Cutscenes/*` (asmdef name is `Cutscenes`, **not** `Features.Cutscenes`).
-Map: [`README.md`](README.md).*
+**Assembly:** `Cutscenes` · **Namespace:** `Features.Cutscenes` · **Source:** `Features/Cutscenes/**`
 
-**Status:** Live, data-driven. Each cutscene declares its own trigger event;
-`CutsceneDirector` subscribes to all of them and plays on raise. **Adding a cutscene
-needs no code change.** Play-once gating writes/reads a fact, so the director *does*
-touch `WorldState` — reversing an older "the director no longer touches the save
-system" note.
+Each cutscene declares its own trigger event. `CutsceneDirector` subscribes to all
+of them and plays on raise. Playback is Timeline inside an instantiated prefab.
 
-## Components
+## Types
 
-| Component | Location | Responsibility |
+| Type | File | Description |
 |---|---|---|
-| `CutsceneDefinitionSO` | `Features/Cutscenes/CutsceneDefinitionSO.cs` | `id`, `cutscenePrefab` (carries a `PlayableDirector`), `eventTrigger` (`VoidEventSO` — what fires it), `eventRaiseOnFinish` (`VoidEventSO` raised on stop — chains forward), `replayable`, `isTriggerForQuest`. Derived `WritesFinishedFact => !replayable \|\| isTriggerForQuest`. |
-| `CutsceneCatalogSO` | `Features/Cutscenes/CutsceneCatalogSO.cs` | `List<CutsceneDefinitionSO> cutscenes`, serialized onto the director. |
-| `CutsceneDirector` | `Features/Cutscenes/CutsceneDirector.cs` | `MonoBehaviour`. `OnEnable`: for each def, skip if no trigger or if play-once-gated (`!replayable && GetFlag(CutsceneFinished(id))`), else bind a handler to `eventTrigger.Raised` (stored for `OnDisable`). `Play`: `InputRouter.Enter(Cutscene)` on first active cutscene; instantiate prefab; wire skip via `CutsceneInput.SkipCutscene`; on `playable.stopped` → write finished-fact if opted in, raise `eventRaiseOnFinish`, destroy instance, `InputRouter.Exit(Cutscene)` when the last one ends. |
-| `CutsceneTextScrambleReveal` | `Features/Cutscenes/CutsceneTextScrambleReveal.cs` | `ITimeControl` on a Timeline clip: scrambles then settles TMP text, char-by-char, driven by clip time. |
+| `CutsceneDefinitionSO` | `CutsceneDefinitionSO.cs` | `id`, `cutscenePrefab` (carries a `PlayableDirector`), `eventTrigger` (`VoidEventSO`), `eventRaiseOnFinish` (`VoidEventSO`), `replayable`, `isTriggerForQuest`. Derived: `WritesFinishedFact => !replayable \|\| isTriggerForQuest`. |
+| `CutsceneCatalogSO` | `CutsceneCatalogSO.cs` | `List<CutsceneDefinitionSO> cutscenes`, serialized onto the director. |
+| `CutsceneDirector` | `CutsceneDirector.cs` | `MonoBehaviour`. Binds trigger handlers on enable, unbinds on disable, plays and tears down cutscenes. |
+| `CutsceneTextScrambleReveal` | `CutsceneTextScrambleReveal.cs` | `ITimeControl` on a Timeline clip. Scrambles then settles TMP text char-by-char, driven by clip time. |
 
-## Rules
+## Sequences
 
-1. **Adding a cutscene is code-free** — make the def, assign prefab + `eventTrigger`,
-   add to catalog, ensure something raises the trigger.
-2. **Playback is prefab-instantiation** — each cutscene is a self-contained prefab with
-   its own `PlayableDirector` and Timeline bindings. Unbound `ActivationTrack`s fail
-   **silently**.
-3. **Replay is prevented by the finished-fact** (`WritesFinishedFact`), re-checked at
-   subscription time in `OnEnable`. A `replayable` cutscene that also
-   `isTriggerForQuest` still writes its fact (so a quest can gate on it) but is not
-   play-once-blocked.
-4. **Input context is the director's responsibility** — it enters/exits the `Cutscene`
-   context around playback ([input](input.md)); skip is a `Cinematic`-map action.
-5. **The finished-fact is the hand-off to the quest system.** It's the first link in
-   the narrative trace (README) — the director doesn't know quests exist; a quest's
-   `startConditions` just test `cutscene.{id}.finished`.
+### Subscription — `OnEnable`
+
+```
+foreach def in catalog.cutscenes
+    skip if def.eventTrigger == null
+    skip if !def.replayable && WorldState.GetFlag(CutsceneFinished(def.id))
+    bind () => Play(def) to def.eventTrigger.Raised, record the binding
+```
+
+`OnDisable` unbinds every recorded handler and clears the list.
+
+### Playback — `Play(def)`
+
+```
+if activeCutscenes++ == 0        InputRouter.Enter(Cutscene)
+instance = Instantiate(def.cutscenePrefab)
+playable = instance.GetComponent<PlayableDirector>()
+bind playable.Stop to CutsceneInput.SkipCutscene
+playable.stopped:
+    unbind the skip handler
+    if def.WritesFinishedFact   WorldState.SetFlag(CutsceneFinished(def.id), true)
+    def.eventRaiseOnFinish?.RaiseAction()
+    Destroy(instance)
+    if --activeCutscenes == 0    InputRouter.Exit(Cutscene)
+playable.Play()
+```
+
+## Contracts
+
+1. Adding a cutscene requires no code change.
+2. Each cutscene prefab is self-contained and carries its own `PlayableDirector`
+   and Timeline bindings. An unbound `ActivationTrack` fails silently.
+3. The play-once gate is evaluated at subscription time in `OnEnable`. A cutscene
+   that is both `replayable` and `isTriggerForQuest` writes its finished-fact but
+   is not blocked from replaying.
+4. The director owns the `Cutscene` input context for the duration of playback.
+   Skip is a `Cinematic`-map action ([`input.md`](input.md)).
+5. `cutscene.{id}.finished` is the hand-off to quests. The director does not
+   reference the quest system.
+
+## Authoring
+
+Create the definition, assign `cutscenePrefab` and `eventTrigger`, add it to the
+catalog assigned on `CutsceneDirector`, and ensure something raises the trigger
+asset. To chain, assign `eventRaiseOnFinish` to the next cutscene's `eventTrigger`.

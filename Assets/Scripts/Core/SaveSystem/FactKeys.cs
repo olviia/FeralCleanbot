@@ -27,6 +27,8 @@ namespace Core.SaveSystem
         public static string QuestCompleted(string id) => $"quest.{id}.completed";
         public static string ModuleOwned(string id) => $"module.{id}.owned";
         
+        public static string SurfaceMask(string id) => $"surface.{id}.mask";
+        
         
         public const string TutorialPlayerMoved = "tutorial.moved";
         public const string TutorialPlayerRotated = "tutorial.rotated";

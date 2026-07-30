@@ -772,7 +772,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 3.018, y: 0.036, z: -10.145}
-  m_LocalScale: {x: 11.27, y: 7.04, z: 5}
+  m_LocalScale: {x: 20, y: 20, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -858,8 +858,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Features.Modules::Features.Modules.CleaningModule.Dust.DustSurface
   dustMaterial: {fileID: 2100000, guid: 760a73bf5f41c754b9605bc143635810, type: 2}
-  shellCount: 28
-  maxHeight: 0.056
+  shellCount: 11
+  maxHeight: 0.055
   maskCanvas: {fileID: 605256928}
 --- !u!1 &633786931
 GameObject:
@@ -2991,7 +2991,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   color: {r: 0, g: 0, b: 0, a: 1}
   brush:
-    footprint: {fileID: 2800000, guid: 957de1d0d78529747b7fa668cc15d5b4, type: 3}
+    footprint: {fileID: 10912, guid: 0000000000000000f000000000000000, type: 0}
     halfSize: 0.53
   emitter:
     spacingFraction: 0.15

@@ -1,90 +1,55 @@
 # Editor tooling
 
-*`Assets/Scripts/Editor/**`. Map: [`README.md`](README.md).*
+**Assembly:** `Assembly-CSharp-Editor` (predefined) · **Namespaces:** `Tools.FactKeyRegistry`, `Tools` · **Source:** `Editor/**`
 
-All of it compiles into the predefined `Assembly-CSharp-Editor`, which
-auto-references **every asmdef and every package**. So editor tools may use
-`Unity.InputSystem` freely without breaking the runtime quarantine
-([input](input.md)) — the *runtime* views stay package-free; only their drawers
-don't.
-
-**The shared premise: keys are never hand-typed.** Both tools here exist so an
-authored string is picked from a guarded list instead of typed, and so a typo
-becomes impossible rather than merely unlikely. Tooling was built *before* the first
-asset was authored.
+Everything here compiles into the predefined editor assembly, which auto-references
+every asmdef and every package. Editor tooling may use `Unity.InputSystem` without
+affecting the runtime quarantine ([`input.md`](input.md) contract 2).
 
 ---
 
 ## Fact-key registry
 
-**Status:** Live. Lets an authored `FactCondition` pick its key from a hierarchical
-dropdown of *every* valid key in the project.
+An authored `FactCondition` picks its key from a hierarchical dropdown of every
+valid key in the project.
 
-Namespace `Tools.FactKeyRegistry`.
-
-| Component | Location | Responsibility |
+| Type | File | Description |
 |---|---|---|
-| `IFactKeySource` | `Editor/FactKeyRegistry/IFactKeySource.cs` | Contract: `IEnumerable<string> GetFactKeys()`. Implement to contribute keys. |
-| `ConstKeySource` | `…/ConstKeySource.cs` | Reflects every `[FactKeySource]`-marked class's public-static-const strings (code-born keys, e.g. the tutorial consts). |
-| `CutsceneKeySource` | `…/CutsceneKeySource.cs` | Enumerates `CutsceneDefinitionSO` assets that opt in, yields `FactKeys.CutsceneFinished(id)`. |
-| `QuestKeySource` | `…/QuestKeySource.cs` | Enumerates `QuestDefinitionSO` assets, yields `FactKeys.QuestCompleted(id)` + `QuestStage(id)`. |
-| `ModuleKeySource` | `…/ModuleKeySource.cs` | Enumerates `ModuleDefinitionSO` assets, yields `FactKeys.ModuleOwned(id)` ([modules](modules.md)). |
-| `FactKeyRegistry` | `…/FactKeyRegistry.cs` | Static. `Collect()` discovers every `IFactKeySource` implementor via `TypeCache.GetTypesDerivedFrom`, instantiates each, concatenates and de-dupes. The list backing the dropdown. |
-| `FactKeyDropdown` / `FactKeyDropdownItem` | `…/FactKeyDropdownItem.cs` | `AdvancedDropdown` that splits keys on `.` into a tree; leaf carries the full key. |
-| `FactConditionDrawer` | `…/FactConditionDrawer.cs` | `[CustomPropertyDrawer(typeof(FactCondition))]`. Renders key-dropdown + `test` + (`value` only when `CounterAtLeast`). |
+| `IFactKeySource` | `FactKeyRegistry/IFactKeySource.cs` | `IEnumerable<string> GetFactKeys()`. |
+| `ConstKeySource` | `FactKeyRegistry/ConstKeySource.cs` | Reflects the public static const strings of every `[FactKeySource]`-marked class. |
+| `CutsceneKeySource` | `FactKeyRegistry/CutsceneKeySource.cs` | Enumerates opted-in `CutsceneDefinitionSO` assets, yields `FactKeys.CutsceneFinished(id)`. |
+| `QuestKeySource` | `FactKeyRegistry/QuestKeySource.cs` | Enumerates `QuestDefinitionSO` assets, yields `FactKeys.QuestCompleted(id)` and `QuestStage(id)`. |
+| `ModuleKeySource` | `FactKeyRegistry/ModuleKeySource.cs` | Enumerates `ModuleDefinitionSO` assets, yields `FactKeys.ModuleOwned(id)`. |
+| `FactKeyRegistry` | `FactKeyRegistry/FactKeyRegistry.cs` | Static. `Collect()` discovers every `IFactKeySource` implementor via `TypeCache.GetTypesDerivedFrom`, instantiates each, concatenates and de-dupes. |
+| `FactKeyDropdown`, `FactKeyDropdownItem` | `FactKeyRegistry/FactKeyDropdownItem.cs` | `AdvancedDropdown` splitting keys on `.` into a tree; the leaf carries the full key. |
+| `FactConditionDrawer` | `FactKeyRegistry/FactConditionDrawer.cs` | `[CustomPropertyDrawer(typeof(FactCondition))]`. Renders the key dropdown, `test`, and `value` (only when `CounterAtLeast`). |
 
-**Invariant:** the *same* `FactKeys` method computes the key both at author time
-(sources, in-editor) and at runtime (writers/readers). Adding a new derived key
-family = one `FactKeys` method + (if asset-derived) one `IFactKeySource`. **Nothing
-else** — discovery is by convention.
+### Contracts
 
-**Sources register by existing.** `Collect()` was a hardcoded
-`IFactKeySource[] Sources` array, which made `IFactKeySource`'s own doc comment
-("implement this to contribute keys") a lie: implementing it did nothing, and the
-failure was silent — no error, just an absent dropdown entry, which reads as a
-broken key format or a broken asset. `TypeCache` is editor-only and precomputed at
-domain reload, so the cost is nil and the class of bug is gone rather than this
-instance of it. A type that implements the interface without a parameterless
-constructor is skipped with a warning.
+1. The same `FactKeys` method computes a key at author time and at runtime.
+2. Adding a derived key family requires one `FactKeys` method and, if the key is
+   asset-derived, one `IFactKeySource` implementation. Discovery is by convention.
+3. A type implementing `IFactKeySource` without a parameterless constructor is
+   skipped with a warning.
 
 ---
 
 ## Input action-key drawer
 
-**Status:** Live. The smaller sibling of the above — same intent, simpler widget.
-
-| Component | Location | Responsibility |
+| Type | File | Description |
 |---|---|---|
-| `InputGlyphDrawer` | `Editor/InputGlyphDrawer.cs` | `[CustomPropertyDrawer(typeof(InputActionKeyAttribute))]` ([input](input.md#the-0-glyph-text-view-localized-text-with-inline-key-labels)). Enum-style `EditorGUI.Popup` of `(none)` + every `"Map/Action"` read from the single `InputActionAsset`. |
-| `SceneSwitchOverlay` | `Editor/SceneSwitchOverlay.cs` | Scene-view overlay for jumping between scenes. Convenience, not architecture. |
-| `FontToSprite` | `Editor/FontToSprite.cs` | Asset utility. |
+| `InputGlyphDrawer` | `InputGlyphDrawer.cs` | `[CustomPropertyDrawer(typeof(InputActionKeyAttribute))]`. Enum-style `EditorGUI.Popup` listing `(none)` plus every `"Map/Action"` read from the single `InputActionAsset`. |
+| `SceneSwitchOverlay` | `SceneSwitchOverlay.cs` | Scene-view overlay for jumping between scenes. |
+| `FontToSprite` | `FontToSprite.cs` | Asset utility. |
 
-### Design notes
+### Contracts
 
-**Flat popup, not `AdvancedDropdown`.** `AdvancedDropdown` earns its keep at many
-entries with a natural tree (fact keys split on `.`). With ~5 actions, the enum-style
-`EditorGUI.Popup` is the honest call.
-
-**`BeginChangeCheck` guards against silent wipes.** A stale or renamed key isn't in
-`_options`, so `Array.IndexOf` returns `-1` and the popup displays `(none)` — but the
-value is only *written back* if the user actually touches it. Merely viewing the
-inspector must not destroy data.
-
-**`BeginProperty`/`EndProperty` must be balanced.** They bracket the rect and tell
-Unity "this region *is* this SerializedProperty" — which is what powers the prefab
-override bar, right-click Revert/Copy/Paste, mixed-value display on multi-select, and
-label dragging. `EndProperty` once sat inside the `if (EndChangeCheck())` block, so it
-only popped on frames where the value changed; `actionKeys` is an **array**, so every
-element pushed without popping on every repaint. Unity degrades quietly here rather
-than throwing, which is what makes it a bad bug — the override bar silently attaches
-to the wrong field. Fixed 2026-07-16.
-
-*Still open:* the drawer ignores `BeginProperty`'s **return value**. It returns a
-property-aware label carrying override state and mixed-value handling; feeding it back
-into the `Popup` is the idiomatic form, and without it those features no-op even with
-the pairing fixed.
-
-**`_options ??= BuildOptions()` caches for the drawer's lifetime** — a newly-added
-action won't appear until a domain reload or reselect. That's deliberate:
-`BuildOptions` does an `AssetDatabase.FindAssets` + full asset load, and running it
-every repaint of every array element would make the inspector crawl.
+1. `BeginChangeCheck` guards the write-back. A stale or renamed key is not in
+   `_options`, so `Array.IndexOf` returns `-1` and the popup displays `(none)`; the
+   value is written back only if the user changes it.
+2. `BeginProperty` and `EndProperty` must be balanced on every repaint, not only on
+   frames where the value changed. `actionKeys` is an array, so an unbalanced pair
+   pushes once per element per repaint. Unity does not throw on imbalance.
+3. `_options ??= BuildOptions()` caches for the drawer's lifetime. A newly added
+   action appears after a domain reload or reselect. `BuildOptions` performs an
+   `AssetDatabase.FindAssets` and a full asset load.

@@ -1,202 +1,140 @@
-# HaywireCleaner — Architecture (as built)
+# HaywireCleaner — Architecture
 
-*Living map of the actual code under `Assets/Scripts`. Companion to
-`../architecture-foundations.md` (the theory — why the boundaries are where they
-are) and `../quest-system-structure.md` (the reactive-narrative research this
-project's fact system implements).*
+Reference documentation for the code under `Assets/Scripts`. One file per system.
 
-**This file is the map only** — what the systems are, how they depend on each
-other, and the trace that ties them together. The detail lives one file per
-system, so a task can load only what it needs:
+---
 
-| File | Covers |
+## Documentation format
+
+**This is the required format for all files in this folder.** Use it for new
+systems and keep existing files in it.
+
+### Rules
+
+1. **Document what exists, not what is planned.** No roadmaps, no "not yet built",
+   no TODO lists, no status labels. If it is not in the code, it is not in here.
+2. **State facts, not reasons.** No "why we chose", no rejected alternatives, no
+   history of past bugs. Rationale belongs in `../architecture-foundations.md` and
+   the per-feature design docs; task lists belong in `../todo.md`.
+3. **Contracts are stated, not argued.** "X must Y" — one sentence, no justification.
+4. **No comparisons to other engines, games, or literature.**
+5. **Every claim must be checkable against the code.** If a rename would make a
+   sentence wrong, that sentence must be short enough to be worth fixing.
+6. **Link by section anchor** when another file owns a subject; never restate it.
+
+### Structure
+
+````markdown
+# System name
+
+**Assembly:** `X` · **Namespaces:** `A`, `B` · **Source:** `path/**`
+
+One or two sentences stating what the system does.
+
+## Types
+| Type | File | Description |
+
+## Contracts
+Numbered. Each is a rule that must hold.
+
+## Sequences
+Ordered runtime flows, as code blocks.
+
+## Authoring
+What must be configured in the editor for the system to work.
+````
+
+Omit any section that has no content. `Types` and `Contracts` are near-mandatory;
+`Sequences` and `Authoring` appear only where behaviour is order-dependent or
+requires inspector setup.
+
+---
+
+## Index
+
+| File | System |
 |---|---|
-| [`core.md`](core.md) | Fact spine · scene flow & session intent · possession & modules · Core idioms & event channels |
-| [`quests.md`](quests.md) | `QuestRuntime` brain · progression model · the read-model seam (`QuestInfo`) |
-| [`cutscenes.md`](cutscenes.md) | Data-driven Timeline playback · finished-facts · play-once gating |
-| [`input.md`](input.md) | Context stack · execution transport · glyph display projection · `{0}` glyph-text view |
-| [`interaction.md`](interaction.md) | Focus sensor · interactables · charging dock |
-| [`modules.md`](modules.md) | Module ownership as facts · loadout reconciler · grant vs restore |
-| [`ui.md`](ui.md) | Prompt/mount channels · popups & modals · menu shell & pause · quest views |
-| [`editor-tooling.md`](editor-tooling.md) | Fact-key registry & dropdown · input action-key drawer |
-
-**Last full sweep:** 2026-07-12 (all 79 scripts + 9 asmdefs).
-**Partial updates since:** 2026-07-15 — quest journal + HUD tracker; composite-aware
-glyph display; menu shell & context-driven pause. 2026-07-16 — split into this
-folder; popup/modal system (`UIPopupRequest`/`UIPopup`/`UIHoldToConfirm`) and the
-dual-addressed mount point; `MenuInput.ConfirmDown/Up`. 2026-07-18 — save/load path
-(`WorldState` hardening, `SaveVec3`, `GameFlow.Begin`, `LoadGameButton`); module
-loadout system (new [`modules.md`](modules.md)); `QuestRuntime` pass loop;
-`FactKeyRegistry` convention-based discovery. Not a full re-sweep — the sections
-touched reflect current code.
-
-**Maintenance rule:** keep it coarse and stable. Update a section when a system
-changes shape or a stated invariant/status stops being true — not for every edit.
-A map that lies is worse than none. *(It has lied before: `menu-ui-handoff.md`
-sent a session chasing a file that was already written.)*
+| [`core.md`](core.md) | Fact spine · save container · session intent · scene flow · possession & modules |
+| [`quests.md`](quests.md) | Quest state machine · progression writers · quest read-model |
+| [`cutscenes.md`](cutscenes.md) | Data-driven Timeline playback |
+| [`input.md`](input.md) | Context stack · execution transport · glyph display |
+| [`interaction.md`](interaction.md) | Focus sensor · interactables · docking |
+| [`modules.md`](modules.md) | Module ownership facts · loadout reconciler |
+| [`ui.md`](ui.md) | Channels · popups · menu shell · quest views |
+| [`cleaning.md`](cleaning.md) | Paint canvas · dust shells · surface identity & mask persistence |
+| [`editor-tooling.md`](editor-tooling.md) | Fact-key registry · input action-key drawer |
 
 ---
 
-## The one idea everything narrative hangs on — the fact spine
+## Assemblies
 
-**All persistent game/narrative state is flags and counters in one static store,
-`WorldState`. Systems *write* facts and *react* to the `WorldState.FactChanged`
-signal; they never call each other directly.** A "condition" is data
-(`FactCondition`) evaluated against that store. Quests, cutscene gating, and the
-tutorial trackers are all just writers and readers of facts. Keys are never
-hand-typed — every key is minted in exactly one place, `FactKeys`, and surfaced
-to authoring through an editor dropdown. This is the CD-Projekt/Osiris "facts +
-generic conditions" shape; the reasoning is in `../quest-system-structure.md`.
-
-## Systems index
-
-| # | System | One-line | Detail | Status |
-|---|---|---|---|---|
-| 1 | **Fact spine** | Persistent flag/counter store + `FactChanged`; *is* the save | [core](core.md#1-fact-spine) | Live |
-| 2 | **Fact-key tooling** (editor) | Dropdown of every valid key, gathered from code + assets | [editor-tooling](editor-tooling.md#fact-key-registry) | Live (editor-only) |
-| 3 | **Quests** | Conditions over facts; stage counter is the source of truth | [quests](quests.md) | Live |
-| 4 | **Cutscenes** | Data-driven, event-triggered Timeline playback; writes finished-fact | [cutscenes](cutscenes.md) | Live |
-| 5 | **Session intent / entry flow** | Carries New-Game vs Continue across the scene load; `GameFlow.Begin` prepares state *before* the transition | [core](core.md#5-session-intent--new-game-flow) | Live (New Game + Continue) |
-| 6 | **Scene flow** | Title↔Gameplay additive load, behind one vocabulary | [core](core.md#6-scene-flow) | Live |
-| 7 | **Possession & modules** | Which actor gets input; modules react to typed intents | [core](core.md#7-possession--module-input) | Live (one actor) |
-| 8 | **Input routing** | Device→`Intent`; context stack; glyph projection + `{0}` glyph-text view | [input](input.md) | Live (Player/Cutscene/Menu) |
-| 9 | **Interaction & docking** | Focus sensor, interactables, charging dock | [interaction](interaction.md) | Live |
-| 10 | **UI prompt / mount** | SO event channels for prompt + prefab mounting | [ui](ui.md#10-ui-prompt--mount-channels) | Live |
-| 11 | **Quest read-model + views** | Quest facts → immutable snapshots; journal + HUD over the seam | [quests](quests.md#the-read-model-journal--hud-seam) · [ui](ui.md#the-quest-views) | Live |
-| 12 | **Menu shell & game-pause** | Menu open/close pushes `Menu` context; context drives `timeScale` | [ui](ui.md#12-menu-shell--game-pause) | Live (shell; skin pending) |
-| 13 | **Popups & modals** | Quest-spawned requester → mount channel → canvas-parented modal + hold-to-confirm | [ui](ui.md#13-popups--modals) | Live (tutorial popup) |
-| 14 | **Module ownership & loadout** | `module.{id}.owned` facts → reconciler spawns/destroys module prefabs under the actor | [modules](modules.md) | Live (interaction module) |
-
-## Dependency direction (the only arrows allowed)
-
-```
-  App(Bootstrap)   Features.*(Input, Modules, Cutscenes, Interactables, UI, Quests, Title)
-        \                 \        \        \         \        \       /
-         \                 \        \        \         \        \     /
-          └──────────────────────────── Core ─────────────────────┘
-                    (SaveSystem · Player · Input · Interaction ·
-                     Events · SceneControls · Quests)
-
-  Features → Core only.  Feature → Feature: never.  Core → nothing above it.
-  App(Bootstrap) → Core, and is the one place allowed to know Feature scene
-  names / wire event assets (composition root).
-```
-
-Enforced mechanically: every Feature asmdef references **only `Core`** (plus Unity
-packages). Verify: no Feature asmdef lists another Feature.
-
-## Assemblies (asmdef → references)
-
-| Assembly | References | Notes |
+| Assembly | References | Source |
 |---|---|---|
-| `Core` | `Unity.Localization` | Was "references nothing"; now pulls Localization. Still references no Feature. |
-| `App` | `Core` | `Bootstrap`, `GameplayBootstrap` (namespace `Bootstrap`) |
-| `Features.Input` | `Core`, `Unity.InputSystem`, `Unity.TextMeshPro` | The Input System package is quarantined here. (TMP ref is probably strippable — Appendix B.) |
-| `Features.Modules` | `Core` | |
-| `Cutscenes` | `Core`, `Unity.Timeline`, `Unity.TextMeshPro` | asmdef name is `Cutscenes`, not `Features.Cutscenes` |
-| `Features.Interactables` | `Core`, `Unity.Localization` | |
-| `Features.UI` | `Core`, `Unity.TextMeshPro`, `Unity.Localization` | **`UnityEngine.UI` is not listed** but `Image`/`Button` resolve anyway — `Unity.TextMeshPro` drags it in (TMP's own types derive from `MaskableGraphic`). Implicit; add it explicitly if TMP is ever dropped. |
-| `Features.Quests` | `Core`, `Unity.Localization` | |
-| `Features.Title` | `Core`, `Unity.Localization` | |
-| *(none)* — `Editor/**` | predefined `Assembly-CSharp-Editor` | auto-references all asmdefs **and all packages** (so editor tools may use `Unity.InputSystem` freely without breaking the runtime quarantine); namespaces `Tools.FactKeyRegistry` / `Tools` |
-| *(none)* — `Prototypes/*`, `FpvSlimPrototype/*`, `MyScript.cs` | predefined `Assembly-CSharp` | **scratch, not architecture** — see Appendix A |
+| `Core` | `Unity.Localization` | `Core/**` |
+| `App` | `Core`, `Features.Modules` | `App/**` |
+| `Features.Input` | `Core`, `Unity.InputSystem`, `Unity.TextMeshPro` | `Features/Input/**` |
+| `Features.Modules` | `Core`, `Unity.Localization`, `Unity.InputSystem` | `Features/Modules/**` |
+| `Cutscenes` | `Core`, `Unity.Timeline`, `Unity.TextMeshPro` | `Features/Cutscenes/**` |
+| `Features.Interactables` | `Core`, `Unity.Localization` | `Features/Interactables/**` |
+| `Features.UI` | `Core`, `Unity.TextMeshPro`, `Unity.Localization` | `Features/UI/**` |
+| `Features.Quests` | `Core`, `Unity.Localization` | `Features/Quests/**` |
+| `Features.Title` | `Core`, `Unity.Localization` | `Features/Title/**` |
+| `Assembly-CSharp-Editor` (predefined) | auto-references all asmdefs and packages | `Editor/**` |
+| `Assembly-CSharp` (predefined) | — | `Prototypes/**`, `FpvSlimPrototype/**` |
 
-## The narrative stack, end to end (the trace to hold onto)
+`Features.UI` does not list `UnityEngine.UI`; `Image` and `Button` resolve through
+`Unity.TextMeshPro`, whose types derive from `MaskableGraphic`.
 
-The spine that ties fact + cutscene + quest + tutorial together, wired end to end:
+`Prototypes/**` and `FpvSlimPrototype/**` are self-contained spikes in their own
+namespaces, referencing neither `Core` nor `Features`. They are not part of any
+system documented here.
+
+## Dependency rules
 
 ```
-New Game (core §5) → intro CutsceneDefinitionSO's eventTrigger raised
-  → CutsceneDirector.Play: InputRouter.Enter(Cutscene); Timeline runs
-  → on playable.stopped: if WritesFinishedFact → WorldState.SetFlag(
-        FactKeys.CutsceneFinished("intro")); eventRaiseOnFinish?.Raise;
-        InputRouter.Exit(Cutscene)
-  → WorldState.FactChanged fires
-  → QuestRuntime: a quest whose startConditions test cutscene.intro.finished
-        is now met → writes quest.{id}.stage = 1
-  → entering stage 1 instantiates the stage's setupPrefabs, which include
-        AxisInputDwell trackers for "move"/"rotate" AND a UIPopupRequest
-  → UIPopupRequest.OnEnable → RaiseShow(popupPrefab) → UIMountPoint mounts it
-        into the canvas → UIPopup.OnEnable → InputRouter.Enter(Menu)
-        → GamePauseInMenu freezes time; the journal refuses to open
-  → player holds Confirm (UIHoldToConfirm, unscaled clock) or clicks Close
-        → RaiseHide → mount point destroys the instance → UIPopup.OnDisable
-        → Exit(Menu) → time resumes
-  → player moves/rotates → DwellTracker accumulates → writes
-        FactKeys.TutorialPlayerMoved / TutorialPlayerRotated, destroys itself
-  → FactChanged → QuestRuntime rechecks stage-1 objectives, all met → stage = 2
-  → stage 2's setupPrefabs mount the interact popup; completing its hold fires
-        onCompleted → FactSetterSO.Write → module.InteractModule.owned = true
-  → FactChanged → ModuleLoadout instantiates the InteractionModule prefab under
-        the ActorHost → it self-registers with Actor → doors start showing prompts
+App ──────────────────────┐
+  │                       ▼
+  │   Features.*(Input, Modules, Cutscenes, Interactables, UI, Quests, Title)
+  │                       │
+  └───────────► Core ◄────┘
 ```
 
-Read that trace once and the whole game's control flow is in your head: **nothing
-in it is a direct call between systems.** Every arrow is a fact write, an event
-raise, or a context push.
+1. A Feature assembly references `Core` and Unity packages only.
+2. A Feature assembly never references another Feature assembly.
+3. `Core` references no assembly above itself.
+4. `App` may reference `Core` and any Feature. It is the only assembly that may.
+5. Nothing references `App`. A Feature needing to invoke App code is wired through
+   scene data (`UnityEvent`) or an SO event channel.
+6. `Core` never references `UnityEngine.InputSystem`.
+7. `SceneManager` is called only in `Core/SceneControls/SceneLoader.cs`.
 
----
+## Runtime sequence: new game to first module grant
 
-## Appendix A — Prototype / scratch code (NOT architecture)
+```
+GameFlow.Begin(session, NewGame)
+  WorldState.NewSave()
+  SceneStateMachine.ChangeSceneTo(Gameplay)
+GameplayBootstrap.Start → newGameStarted.RaiseAction()
+CutsceneDirector.Play(intro)
+  InputRouter.Enter(Cutscene); Timeline runs
+  playable.stopped → WorldState.SetFlag(CutsceneFinished("intro"))
+                     eventRaiseOnFinish?.RaiseAction()
+                     InputRouter.Exit(Cutscene)
+WorldState.FactChanged
+QuestRuntime → startConditions met → SetCounter(QuestStage(id), 1)
+  ReconcileSetup instantiates stage 1 setupPrefabs:
+    AxisInputDwell ×2, UIPopupRequest
+UIPopupRequest.OnEnable → RaiseShow(prefab)
+  UIMountPoint → Instantiate(prefab, container)
+  UIPopup.OnEnable → InputRouter.Enter(Menu) → GamePauseInMenu sets timeScale 0
+UIHoldToConfirm.onCompleted or btn_close → RaiseHide(root)
+  UIMountPoint destroys instance → UIPopup.OnDisable → Exit(Menu) → timeScale 1
+AxisInputDwell → SetFlag(TutorialPlayerMoved / TutorialPlayerRotated), self-destructs
+WorldState.FactChanged → QuestRuntime → stage 2
+stage 2 popup completes → FactSetterSO.Write → module.InteractModule.owned = true
+WorldState.FactChanged → ModuleLoadout instantiates InteractionModule under ActorHost
+  → Actor.RegisterModule → doors show prompts
+```
 
-Two self-contained spike folders in their own namespaces, referencing neither
-`Core` nor `Features` (they fall into `Assembly-CSharp`). They are the
-pre-architecture gameplay experiments — ignore them when reasoning about systems,
-and don't wire production code to them.
-
-- **`Prototypes/`** (namespace `Prototypes`, 9 files) — the original cleaning
-  loop spike: `PrototypeRobotMove`/`PrototypeRobotClean`/`PrototypeDirtPatch`/
-  `PrototypeBeads`/`PrototypeSliderDirtCollected`/`PrototypeCamera`/
-  `PrototypeFlashLight`/`PrototypeInteractPrompt`, plus `SceneSwitcher`
-  (a raw `SceneManager.LoadScene` — the one legitimate non-`SceneLoader`
-  `SceneManager` call, and it's scratch).
-- **`FpvSlimPrototype/`** (namespace `FpvSlimPrototype`, 7 files) — the
-  first-person "slim mode squeeze" spike: `FpvSlimProtBotMove` (space toggles a
-  y-scale squash), `FpvSlimProtClean`/`FpvSlimProtDirt`/`FpvSlimProtBeads`
-  (forked copies of the Prototype cleaning loop), `FpvSlimProtCamera`/
-  `FpvSlimCameraSwitch`/`FpvSlimProtEdgeDetector`.
-- **`MyScript.cs`** (root, no namespace) — empty class stub. Delete.
-
-These are the concrete referents behind `../architecture-foundations.md`'s slim/
-suction/clean module discussion — kept as design memory, superseded in code by the
-Core/Feature stack above.
-
-## Appendix B — Known stale / cleanup TODOs
-
-- `ActorHost.Awake → TestPossess()` and `[ContextMenu]` — dev-only auto-possess,
-  marked for removal.
-- `Posession.OnPosessionChanged` — declared, never raised.
-- `GameplayBootstrap.InitializeNewGame()`/`LoadSavedGame()` — empty methods left
-  over from when state prep lived here. They read as hooks waiting to be filled, and
-  filling them would duplicate `GameFlow.Begin`. Delete or comment.
-- **Not yet built** (the save/load step, chunks 4–5): nothing writes the bot's
-  position, and nothing calls `WorldState.Save()` except `TestButton`. Planned —
-  save on manual key **and** on docking at the charging station, both to the same
-  file; `positions` accessors exist on `WorldState` and are unused.
-- `QuestRuntime` still has an unused `using System.Data;`.
-- `FactSetterSO.Write` is silent, and its `default:` case is `break` — an unhandled
-  `FactTest` writes nothing and tells nobody. Its `CounterAtLeast` case logs
-  "not implemented yet" and then performs the write anyway; the message is false and
-  trains you to ignore red text. It is the only fact writer wired purely through
-  inspector data, so it is the one that most needs a log line.
-- `QuestRuntime`'s non-convergence cap logs and `break`s, continuing on
-  half-reconciled state. Decision taken (2026-07-18) was loud failure — `throw`
-  instead — not yet applied.
-- `ModuleInput.RaiseStopCharging` / `Intent.StopCharge` — raised but unhandled
-  ([interaction](interaction.md)).
-- `MyScript.cs` — empty stub, delete.
-- `Core` asmdef references `Unity.Localization` — confirm something in Core
-  actually needs it, or drop the reference to keep Core lean.
-- `Features.Input` asmdef references `Unity.TextMeshPro` — nothing in that
-  assembly should need TMP (it's the InputSystem quarantine); likely strip back to
-  `Core`, `Unity.InputSystem`.
-- `UIPopupRequest` still has an unused `using Core.Input;` (left over from when it
-  owned the context push — see [ui](ui.md#13-popups--modals)).
-- `UIMenuController.OnDisable` calls `Exit(Menu)` **unconditionally**, even when the
-  menu was never open — a phantom Exit that can pop a context another owner pushed.
-  Only reachable on scene unload today. Same bug class `Start` was written to avoid.
-- `InputGlyphDrawer` ignores `BeginProperty`'s **return value**; feeding it back into
-  the `Popup` is what makes prefab-override state and mixed-value display work.
-- `InputSystem_Actions`: the `Back` action (UI map, `buttonEast`/`escape`) has no
-  reader. `Cancel`/`Confirm`/`Back` all have `expectedControlType: ""` — `Cancel`
-  was `"Button"` before and looks accidentally wiped.
+Every step is a fact write, an event raise, or a context push. No step is a direct
+call between systems.

@@ -43,6 +43,7 @@ Shader "Cleanbot/DustShell"
                 float _ShellCount;
                 float _MaxHeight;
                 float _CellCount; //dust dencity
+                float4 _PaintRect;
             CBUFFER_END
 
             TEXTURE2D(_DustMask);
@@ -58,9 +59,10 @@ Shader "Cleanbot/DustShell"
             struct Varyings
             {
                 float4 positionCS: SV_POSITION;
-                float2 uv : TEXCOORD0;
-                float3 normalWS: TEXCOORD1;
-                float t : TEXCOORD2; //0 at the surface, 1 at the outermost shell
+                  float2 maskUV : TEXCOORD0;
+                  float2 worldXZ: TEXCOORD1;
+                float3 normalWS: TEXCOORD2;
+                float t : TEXCOORD3; //0 at the surface, 1 at the outermost shell
             };
 
             Varyings vert (Attributes IN)
@@ -72,11 +74,15 @@ Shader "Cleanbot/DustShell"
                 
                 OUT.t = (float)shellIndex / max(_ShellCount - 1.0, 1.0);
                 
-                float3 posOS = IN.positionOS.xyz + IN.normalOS * (OUT.t * _MaxHeight);
-                OUT.positionCS = TransformObjectToHClip(posOS);
-                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
-                OUT.uv = IN.uv;
-                return OUT;
+                 float3 baseWS = TransformObjectToWorld(IN.positionOS.xyz);
+                  OUT.worldXZ = baseWS.xz;
+                  OUT.maskUV  = (baseWS.xz - _PaintRect.xy) / _PaintRect.zw;
+
+                  float3 posOS = IN.positionOS.xyz + IN.normalOS * (OUT.t * _MaxHeight);
+                  OUT.positionCS = TransformObjectToHClip(posOS);
+                  OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                  return OUT;
+
             }
 
             float Hash(float2 p)
@@ -86,7 +92,7 @@ Shader "Cleanbot/DustShell"
             
             half4 frag(Varyings IN) : SV_Target
             {
-                float2 uvCell = IN.uv * _CellCount;
+                float2 uvCell = IN.worldXZ * _CellCount;
                 float2 local = frac(uvCell) -0.5;
                 float falloff = saturate (1.0 - length(local) * 2.0);
                 float strand= Hash(floor(uvCell))*falloff;
@@ -99,7 +105,7 @@ Shader "Cleanbot/DustShell"
 
                 float ao = lerp(0.4, 1.0, IN.t);
 
-                float coverage = SAMPLE_TEXTURE2D(_DustMask, sampler_DustMask, IN.uv).r;
+                float coverage = SAMPLE_TEXTURE2D(_DustMask, sampler_DustMask, IN.maskUV).r;
                 
                 return half4(lit * ao, coverage);
             }

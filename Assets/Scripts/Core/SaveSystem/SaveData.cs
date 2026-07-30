@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using UnityEngine;
 
 
@@ -25,7 +26,8 @@ namespace Core.SaveSystem
     /// </summary>
     internal class SaveData
     {
-        public int saveVersion = 1;
+        public const int CurrentVersion = 1; //waht this build writes
+        public int saveVersion = CurrentVersion; // what this file was written by
         
         //what character it is
         public string characterId;
@@ -44,6 +46,10 @@ namespace Core.SaveSystem
         public Dictionary<string, string> names = new(); // names
         
         public Dictionary<string, SaveVec3> positions = new(); // positions
+
+        
+        //saving textures in here so they go into .bin, not into .json
+        [JsonIgnore] public Dictionary<string, byte[]> blobs = new();
 
         public float inGameTimeSeconds;
         
